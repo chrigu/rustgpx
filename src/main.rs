@@ -1,6 +1,7 @@
+use gpx::Config;
 use std::env;
 use std::process;
-use gpx::Config;
+
 
 fn main() {
     let args: Vec<String> = env::args().collect();
