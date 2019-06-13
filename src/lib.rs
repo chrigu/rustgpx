@@ -10,12 +10,15 @@ pub fn run(config: Config) {
     let contents = fs::read_to_string(config.filename)
         .expect("Something went wrong reading the file");
 
-    find_lat_lon(&contents);
+    let trackpoints = find_lat_lon(&contents);
+    let min_max = find_min_max(trackpoints);
 
+    println!("Max elevation:\n{}", min_max.max_elevation);
+    println!("Min elevation:\n{}", min_max.min_elevation);
     println!("With height:\n{}", config.terminal_height);
 }
 
-pub fn find_lat_lon(contents: &String) -> () {
+fn find_lat_lon(contents: &String) -> Vec<TrackPoint> {
     let mut reader = Reader::from_str(contents);
     reader.trim_text(true);
 
@@ -49,7 +52,7 @@ pub fn find_lat_lon(contents: &String) -> () {
                         state = XmlState::ELEVATION;
                     },
                     b"time" => {
-                        println!("state {:?}", state);
+                        // println!("state {:?}", state);
                         match state { 
                             XmlState::START => continue,
                             _ => state = XmlState::TIME
@@ -79,7 +82,7 @@ pub fn find_lat_lon(contents: &String) -> () {
                     XmlState::TIME => {
                         // println!("time {}", e.unescape_and_decode(&reader).unwrap())
                         datetime = e.unescape_and_decode(&reader).unwrap();
-                        println!("time: {:?}", datetime);
+                        // println!("time: {:?}", datetime);
                     },
                     _ => ()
                 }
@@ -95,11 +98,56 @@ pub fn find_lat_lon(contents: &String) -> () {
         buf.clear();
     }
 
+    trackpoints
 }
 
 fn extract_float_from_attribute(attribute:&[u8]) -> f32 {
     let attribute = str::from_utf8(attribute).unwrap();
     return attribute.parse().expect("No valid number");
+}
+
+fn find_min_max(trackpoints:Vec<TrackPoint>) -> MinMax {
+
+    let mut min_elevation = 1000000.0;
+    let mut max_elevation = 0.0;
+    let mut min_lat = 0.0;
+    let mut max_lat = 0.0;
+    let mut min_lon = 0.0;
+    let mut max_lon = 0.0;
+
+    for trackpoint in &trackpoints {
+        min_elevation = test_min_value(trackpoint.elevation, min_elevation);
+        max_elevation = test_max_value(trackpoint.elevation, max_elevation);
+        min_lat = test_min_value(trackpoint.lat, min_lat);
+        max_lat = test_max_value(trackpoint.lat, max_lat);
+        min_lon = test_min_value(trackpoint.lon, min_lon);
+        max_lon = test_max_value(trackpoint.lon, max_lon);
+    }
+
+    MinMax {
+        min_elevation,
+        max_elevation,
+        min_lat,
+        max_lat,
+        min_lon,
+        max_lon
+    }
+}
+
+fn test_min_value(test_value:f32, min_value:f32) -> f32 {
+    if test_value < min_value {
+        return test_value
+    }
+
+    min_value
+}
+
+fn test_max_value(test_value:f32, max_value:f32) -> f32 {
+    if test_value > max_value {
+        return test_value
+    }
+
+    max_value
 }
 
 #[derive(Debug)]
@@ -110,6 +158,7 @@ enum XmlState {
     TIME
 }
 
+#[derive(Debug)]
 struct TrackPoint {
     elevation: f32,
     datetime: DateTime<FixedOffset>,
@@ -151,4 +200,13 @@ impl Config {
 
         Ok(Config { filename, terminal_height, terminal_width })
     }
+}
+
+struct MinMax {
+    min_elevation: f32,
+    max_elevation: f32,
+    min_lat: f32,
+    max_lat: f32,
+    min_lon: f32,
+    max_lon: f32
 }
